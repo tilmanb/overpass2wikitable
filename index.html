@@ -1,0 +1,47 @@
+<html>
+<head>
+<title>overpass2wikitable demo</title>
+</head>
+<body>
+<h1>overpass2wikitable</h1>
+This tool generates MediaWiki tables from Overpass Turbo queries. It has the possibility to select a subset of the columns/tags from the query result.
+
+<p><a href="overpass2wikitable.html">documentation is laaaaame; show me the page</a></p>
+<h2>some documentation</h2>
+
+<p>Each OSM object will be one table row, each tag will be a column.</p>
+
+The tool can also generate Overpass queries for lists of OSM ids of objects (in the form <pre>w241112210,w148293046,w260133470,n1613997397</pre>).
+
+Mainly you'll paste a overpass query directly into the query field and hit run.
+
+The overpass query should only return tags to reduce API load on the endpoint. Also, be careful you don't accidentally recurse too far and fetch all nodes for a way, for example.
+
+The query out format must be json.
+
+<p>So a query like
+<pre>
+[out:json]
+[timeout:25]
+;
+(
+  node
+    ["aerialway"]
+    (51.648,10.647,51.668,10.685);
+  way
+    ["aerialway"]
+   (51.648,10.647,51.668,10.685);
+  relation
+    ["aerialway"]
+   (51.648,10.647,51.668,10.685);
+);
+out tags;
+</pre>
+is recommended.</p>
+
+"select specific columns" is only needed if you want to select a subset of columns. Normally all columns are contained in the output.
+
+<p><a href="overpass2wikitable.html">enough of those bad explanations; show me the page</a></p>
+</pre>
+</body>
+</html>
