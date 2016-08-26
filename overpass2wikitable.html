@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Overpass2wikitable</title>
+
+        <style>
+			
+			table {
+				border: 1px solid grey;
+			}
+			
+			table td {
+				border: 1px dashed #c0c0c0;
+			}
+			
+			.keyname {
+				font-weight: bold;
+			}
+			
+			.equal {
+				color: green;
+			}
+			
+			.different {
+				color: red;
+			}
+			
+			.equal-or-null {
+				color: #238ce8;
+			}
+			
+			.nullvalue {
+				text-decoration: italic;
+				background-color: #dedede;
+			}
+			
+			#resultstable {
+				//display: none;
+			}
+			
+			.h {
+				display: none;
+			}
+        </style>
+
+        <script src="jquery.min.js"></script>
+		<script src="jquery-ui.min.js"></script>
+	
+		<link rel="stylesheet" href="jquery-ui.min.css">
+		<link rel="stylesheet" href="jquery-ui.structure.min.css">
+		<link rel="stylesheet" href="jquery-ui.theme.min.css">
+    </head>
+    <body>
+	<div class="controls">
+		<label for="overpass_endpoints">Overpass endpoint:</label>
+		<select id="overpass_endpoints" size="1">
+		</select>
+	</div>
+<input type="text" id="idlist"/><input type="button" value="create overpass query for idlist" id="idlist_button"><br/>
+<textarea id="overpassquery" rows="10" cols="80">
+[out:json]
+[timeout:25]
+;
+(
+  node
+    ["natural"]
+    (51.68076487254471,10.270264148712158,51.68677818305219,10.279072523117065);
+  way
+    ["natural"]
+    (51.68076487254471,10.270264148712158,51.68677818305219,10.279072523117065);
+  relation
+    ["natural"]
+    (51.68076487254471,10.270264148712158,51.68677818305219,10.279072523117065);
+);
+out tags;
+</textarea>
+<input type="button" value="process Overpass API request and generate MediaWiki table" id="overpass_button">
+<hr/>
+<div id="toggle_colselect_panel" class="h">
+	<input type="button" id="toggle_colselect" value="select specific columns"/>
+</div>
+<div id="colselect_panel" class="h">
+<select id="colselect" multiple="true" size="10">
+</select>
+<input type="button" id="update_wikitext" value="update wikitext"/>
+<hr/>
+</div>
+<img id="wikitext_throbber" src="images/throbber.gif" class="h"/>
+<textarea id="wikitext" class="automarkup h" cols="60" rows="25"></textarea>		
+		
+
+		
+        <script>
+		
+			var OVERPASS_ENDPOINTS = {
+				"fr":"https://api.openstreetmap.fr/oapi/interpreter",
+				"fr_http":"http://api.openstreetmap.fr/oapi/interpreter",
+				"de":"https://overpass-api.de/api/interpreter",
+				"de_http":"http://overpass-api.de/api/interpreter",
+			}
+		
+			var store_by_id = {};
+			
+			var all_tags = [];
+			var selected_tags = [];
+			
+			var addToStoreById = function(osmid, tags, osmtype) {
+				// store copy of tags
+				store_by_id[osmid] = $.extend({}, tags);
+				store_by_id[osmid]['osmtype'] = osmtype;
+				// loop through the tags of the object (does not contain osmtype)
+				for (var t in tags) {
+					if (all_tags.lastIndexOf(t) == -1) {
+						all_tags.push(t);
+					}
+				}
+			}
+			
+			$("#overpass_button").on('click', function() {
+				ajaxRequestToAPIAndDisplay();
+			});
+			
+			$("#clear_button").on('click', function() {
+				clear();
+			});
+			
+			
+			$("#idlist_button").on('click', function() {
+				var qry_pre  = "[out:json][timeout:25];(";
+				var qry_post = "); out tags;";
+				var qry_in = "";
+				var ids = $("#idlist").val().split(",");
+				
+				for (var i=0;i<ids.length;i++) {
+					//console.log(ids[i]);
+					qry_in += ids[i].replace("n","node(").replace("w","way(").replace("r","rel(")
+					qry_in +=  ");"
+					//console.log(qry_in);
+				}
+				
+				$("#overpassquery").val(qry_pre + qry_in + qry_post)
+			});
+			
+			$("#toggle_colselect").on('click', function() {
+				populateColselect();
+				$("#colselect_panel").show();
+			});
+			
+			$("#update_wikitext").on('click', function() {
+				selected_tags = $("#colselect").val();
+				createWikitextFromStore();
+			});
+
+			// from http://stackoverflow.com/a/6201757/2168905
+			$('textarea.automarkup').focus(function() {
+				var $this = $(this);
+
+				$this.select();
+
+				window.setTimeout(function() {
+					$this.select();
+				}, 1);
+
+				// Work around WebKit's little problem
+				function mouseUpHandler() {
+					// Prevent further mouseup intervention
+					$this.off("mouseup", mouseUpHandler);
+					return false;
+				}
+
+				$this.mouseup(mouseUpHandler);
+			});
+			
+			var clear = function() {
+				store_by_id = {};
+				all_tags = [];
+				selected_tags = [];
+				$("#wikitext").val('');
+				$("#colselect option").remove();
+			}
+			
+			var populateColselect = function() {
+				for (var i=0;i<all_tags.length;i++) {
+					var t = all_tags[i];
+					var option = $('<option value="'+ t + '">' + t + '</option>');
+					$('#colselect').append(option);
+				}
+			}
+				
+			var createWikitextFromStore = function() {
+				
+				var cols = [];
+				var colIndex = 0;
+				var wt = "{| class=\"wikitable sortable\"\n";
+				wt += "! Objekt\n";
+				for (var i=0;i<selected_tags.length;i++) {
+					var s = selected_tags[i];
+					if (s == "osmtype" || s == "osmid") {
+						continue;
+					}
+					wt += "! "+ s + "\n";
+					cols[colIndex++] = s;
+				}
+				wt += "|-\n";
+				
+				for (id in store_by_id) {
+					wt += "| {{"+ store_by_id[id].osmtype + "|"+id+"}}\n";
+					// am Anfang steht die ID
+					for (var i=0;i<cols.length;i++) {
+						if (cols[i] == "osmtype" || cols[i] == "osmid") {
+							continue;
+						}
+						if (store_by_id[id][cols[i]]) {
+							// Das aktuelle Objekt hat den Tag
+							wt += "| " + store_by_id[id][cols[i]] + "\n";
+						} else {
+							wt += "| \n";
+						}
+					}
+				wt += "|-\n";	
+				}
+				
+				wt += "|}\n";
+				$("#wikitext").val(wt);
+			}
+			
+			var ajaxRequestToAPIAndDisplay = function () {
+				$("#wikitext_throbber").attr("src","images/throbber.gif");
+				$("#wikitext_throbber").show();
+				$("#toggle_colselect_panel").hide();
+				$("#wikitext").hide();
+				
+				clear();
+				
+				$.ajax( {
+					  //url: "http://overpass-api.de/api/interpreter",
+					  url: $("#overpass_endpoints").val(),
+					  data: { data: $("#overpassquery").val() },
+					  jsonp: 'jsonp',
+					  dataType: 'jsonp',
+					  success: function(data,status,xhr) {
+							if (data == undefined) {
+								// should not be reached
+								console.log("Barf!");
+								$("#wikitext_throbber").attr("src","images/error.png");
+							} else {
+								$.each(data.elements,
+									function(i,v) {
+										addToStoreById(v.id,v.tags, v.type);
+									}
+								); // end each
+								$("#wikitext_throbber").hide();
+								selected_tags = all_tags;
+								createWikitextFromStore();
+								$("#toggle_colselect_panel").show();
+								$("#wikitext").show();
+								
+							}
+							
+							
+					  } // end success
+				}) // end ajax
+			}
+			
+			$(document).ready(function() {
+
+				//$("#overpass_endpoints option").attr('value',OVERPASS_ENDPOINTS.fr).text(OVERPASS_ENDPOINTS.fr);
+				
+				
+				
+				for (var ep in OVERPASS_ENDPOINTS) {
+					var option = '<option value="'+ OVERPASS_ENDPOINTS[ep] + '">' + OVERPASS_ENDPOINTS[ep] + '</option>';
+					$('#overpass_endpoints').append(option);
+				}
+				/*
+				$("#oe_fr_http").attr('value',OVERPASS_ENDPOINTS.fr_http).text(OVERPASS_ENDPOINTS.fr_http);
+				$("#oe_de").attr('value',OVERPASS_ENDPOINTS.de).text(OVERPASS_ENDPOINTS.de);
+				$("#oe_de_http").attr('value',OVERPASS_ENDPOINTS.de_http).text(OVERPASS_ENDPOINTS.de_http);
+				*/
+				
+			});
+        </script>
+    </body>
+</html>
