@@ -1,3 +1,5 @@
+This software uses jquery, which is covered by its own license; see https://jquery.org/license/
+
 This is free and unencumbered software released into the public domain.
 
 Anyone is free to copy, modify, publish, use, compile, sell, or
